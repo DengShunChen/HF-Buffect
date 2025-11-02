@@ -78,4 +78,9 @@ def test_load_model_failure(mock_tokenizer):
     assert tokenizer is None
     assert model is None
     st.sidebar.error.assert_called()
-    st.error.assert_called_with(f"Could not load the model: {model_id}. Please check the model ID and your internet connection.")
+
+    # Check that the new, more detailed error message is called.
+    # We only check the beginning of the string to avoid overly brittle tests.
+    st.error.assert_called_once()
+    call_args, _ = st.error.call_args
+    assert call_args[0].startswith(f"Failed to load model '{model_id}'")
