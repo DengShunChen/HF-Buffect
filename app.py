@@ -3,6 +3,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor, BitsAndBytesConfig
 from PIL import Image
 import warnings
+import os
 
 warnings.filterwarnings("ignore")
 
@@ -34,7 +35,13 @@ DEVICE = get_device()
 @st.cache_resource
 def load_model(model_id):
     """Loads the LLM, tokenizer, and processor from Hugging Face."""
+
+    # Read the token from environment variables
+    hf_token = os.getenv("HUGGING_FACE_HUB_TOKEN")
+
     st.sidebar.info(f"Downloading and loading model: `{model_id}`...")
+    if hf_token:
+        st.sidebar.info("Using Hugging Face token.")
 
     # Configuration for 4-bit quantization
     bnb_config = BitsAndBytesConfig(
@@ -47,19 +54,20 @@ def load_model(model_id):
     processor = None
     try:
         # Try loading a processor for multimodal models
-        processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+        processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
         st.sidebar.info("Model processor found (likely multimodal).")
     except Exception:
         st.sidebar.info("No processor found (likely a text-only model).")
 
 
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             quantization_config=bnb_config,
             trust_remote_code=True,
-            device_map={"": DEVICE.type}
+            device_map={"": DEVICE.type},
+            token=hf_token
         )
         st.sidebar.success(f"✅ Model `{model_id}` loaded successfully!")
         return processor, tokenizer, model
