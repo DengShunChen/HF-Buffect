@@ -60,8 +60,9 @@ def test_load_model_success(mock_processor, mock_model, mock_tokenizer):
     assert tokenizer == "dummy_tokenizer"
     assert model == "dummy_model"
 
-    mock_processor.assert_called_with(model_id, trust_remote_code=True)
-    mock_tokenizer.assert_called_with(model_id, trust_remote_code=True)
+    # The function now always passes the token, which will be None if the env var is not set.
+    mock_processor.assert_called_with(model_id, trust_remote_code=True, token=None)
+    mock_tokenizer.assert_called_with(model_id, trust_remote_code=True, token=None)
     mock_model.assert_called_once()
 
 
