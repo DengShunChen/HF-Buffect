@@ -4,6 +4,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor, Bit
 from PIL import Image
 import warnings
 import os
+import traceback
 
 warnings.filterwarnings("ignore")
 
@@ -69,11 +70,26 @@ def load_model(model_id):
             device_map={"": DEVICE.type},
             token=hf_token
         )
-        st.sidebar.success(f"✅ Model `{model_id}` loaded successfully!")
+        # Use a simplified format for robust E2E testing
+        st.sidebar.success(f"Model '{model_id}' loaded successfully!")
         return processor, tokenizer, model
     except Exception as e:
-        st.sidebar.error(f"Error loading model: {e}")
-        st.error(f"Could not load the model: {model_id}. Please check the model ID and your internet connection.")
+        error_message = f"An error occurred while loading the model: `{model_id}`."
+        st.sidebar.error(error_message)
+
+        # Provide a more user-friendly message in the main area
+        st.error(
+            f"Failed to load model '{model_id}'. "
+            "Please check the model ID, your internet connection, and ensure you have provided a valid Hugging Face token if the model is private or gated."
+        )
+
+        # Use an expander to show the full technical traceback for debugging
+        with st.expander("Click to see technical details"):
+            st.text(f"Exception Type: {type(e).__name__}")
+            st.text(f"Exception Details: {e}")
+            st.text("Full Traceback:")
+            st.code(traceback.format_exc(), language='text')
+
         return None, None, None
 
 # --- Main App Logic ---
@@ -185,8 +201,13 @@ if prompt := st.chat_input("Ask me anything..."):
                     inputs = processor(text=prompt_template, images=image_to_process, return_tensors="pt").to(DEVICE)
                 # Text-only Input Processing
                 else:
-                    chat_template = [{"role": "user", "content": prompt}]
-                    inputs_text = tokenizer.apply_chat_template(chat_template, tokenize=False, add_generation_prompt=True)
+                    # Manual fallback for models without a chat template (like distilgpt2)
+                    if not tokenizer.chat_template:
+                        inputs_text = f"User: {prompt}\nAssistant:"
+                    else:
+                        chat_template = [{"role": "user", "content": prompt}]
+                        inputs_text = tokenizer.apply_chat_template(chat_template, tokenize=False, add_generation_prompt=True)
+
                     inputs = tokenizer(inputs_text, return_tensors="pt").to(DEVICE)
 
                 # Generate response
@@ -223,8 +244,18 @@ if prompt := st.chat_input("Ask me anything..."):
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
 
             except Exception as e:
-                st.error(f"An error occurred during model generation: {e}")
-                st.session_state.messages.append({"role": "assistant", "content": "Error during generation."})
+                error_message_summary = "An error occurred during model generation."
+                st.error(error_message_summary)
+
+                # Display the detailed error in an expander within the chat message
+                with message_placeholder.expander("Click to see technical details", expanded=False):
+                    st.error(f"**An error occurred during model generation.**")
+                    st.text(f"Exception Type: {type(e).__name__}")
+                    st.text(f"Exception Details: {e}")
+                    st.text("Full Traceback:")
+                    st.code(traceback.format_exc(), language='text')
+
+                st.session_state.messages.append({"role": "assistant", "content": f"{error_message_summary}\n\n```\n{traceback.format_exc()}\n```"})
         else:
             st.error("Model is not loaded. Cannot generate a response.")
 
